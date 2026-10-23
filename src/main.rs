@@ -2,7 +2,7 @@ use std::{env, ffi::CStr, process};
 
 use libwayshot::WayshotConnection;
 use raylib::{
-    ffi::{GetMonitorName, Image as FfiImage, SetWindowMonitor, ToggleFullscreen},
+    ffi::{GetMonitorName, Image as FfiImage, SetWindowMonitor},
     prelude::*,
 };
 const SPOTLIGHT_TINT: Color = Color::new(0x00, 0x00, 0x00, 190);
@@ -131,6 +131,9 @@ fn main() {
                 .try_into()
                 .unwrap(),
         )
+        // Start fullscreen so raylib does not try to discover the window's
+        // position, which Wayland intentionally does not expose.
+        .fullscreen()
         .transparent()
         .undecorated()
         .vsync()
@@ -152,10 +155,6 @@ fn main() {
             );
             process::exit(1);
         });
-
-    unsafe {
-        ToggleFullscreen();
-    }
 
     unsafe {
         SetWindowMonitor(idx as i32);
