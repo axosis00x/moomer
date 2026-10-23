@@ -14,6 +14,10 @@ Zoomer application for wayland (linux) inspired by [tsoding's boomer](https://gi
 | Drag with left mouse button                               | Move the image around.                       |
 | Scroll wheel                                              | Zoom in/out.                                 |
 | <kbd>Ctrl</kbd> + <kbd>SHIFT</kbd> + Scroll wheel         | Change the radius of the flashlight.         |
+| <kbd>M</kbd>                                              | Toggle the mirrored view.                    |
+| <kbd>0</kbd>                                              | Reset zoom and mirroring.                    |
+
+Controls are currently hard-coded in `src/main.rs`. Change the corresponding `KeyboardKey` or `MouseButton` checks there, then rebuild Moomer.
 
 ## HiDPI Displays
 ### Hyprland

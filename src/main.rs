@@ -250,19 +250,17 @@ fn main() {
         }
         let scrolled_amount = rl.get_mouse_wheel_move_v().y;
         if scrolled_amount != 0.0 {
-            match (
-                enable_spotlight,
-                rl.is_key_down(KeyboardKey::KEY_LEFT_SHIFT)
-                    || rl.is_key_down(KeyboardKey::KEY_RIGHT_SHIFT),
-            ) {
-                (_, false) => {
-                    delta_scale += scrolled_amount as f64;
-                }
-                (true, true) => {
-                    spotlight_radius_multiplier_delta +=
-                        (scrolled_amount * spotlight_radius_multiplier / 2.0) as f64;
-                }
-                _ => {}
+            let control_down = rl.is_key_down(KeyboardKey::KEY_LEFT_CONTROL)
+                || rl.is_key_down(KeyboardKey::KEY_RIGHT_CONTROL);
+            let shift_down = rl.is_key_down(KeyboardKey::KEY_LEFT_SHIFT)
+                || rl.is_key_down(KeyboardKey::KEY_RIGHT_SHIFT);
+
+            if enable_spotlight && control_down && shift_down {
+                // Double the previous radius response per wheel notch.
+                spotlight_radius_multiplier_delta +=
+                    (scrolled_amount * spotlight_radius_multiplier) as f64;
+            } else {
+                delta_scale += scrolled_amount as f64;
             }
             scale_pivot = rl.get_mouse_position();
         }
