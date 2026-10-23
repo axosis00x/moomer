@@ -1,5 +1,5 @@
 {
-  description = "Zoomer application for wayland inspired by tsoding's boomer";
+  description = "Moomer, a Wayland zoomer inspired by tsoding's boomer";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -14,7 +14,7 @@
       forEachSystem = nixpkgs.lib.genAttrs (import systems);
     in {
       checks = forEachSystem (system: {
-        inherit (self.packages.${system}) woomer;
+        inherit (self.packages.${system}) moomer;
       });
 
       packages = forEachSystem (system: let
@@ -29,16 +29,14 @@
               wayland
               glfw
               libgbm
-            ]) ++ (
-              with pkgs.xorg; [
-              libX11.dev
-              libXrandr.dev
-              libXinerama.dev
-              libXcursor.dev
-              libXi.dev
+            ]) ++ (with pkgs; [
+              libx11.dev
+              libxrandr.dev
+              libxinerama.dev
+              libxcursor.dev
+              libxi.dev
             ]);
 
-            craneLib = crane.mkLib pkgs;
           in {
             src = let
                 shaderFilter = path: _type: builtins.match ".*fs$" path != null;
@@ -52,6 +50,7 @@
             strictDeps = true;
             nativeBuildInputs = with pkgs; [
               cmake
+              makeWrapper
               pkg-config
               clang
               wayland
@@ -61,22 +60,23 @@
             LIBCLANG_PATH = pkgs.libclang.lib + "/lib/";
           };
       in {
-        woomer = self.packages.${system}.default;
+        moomer = self.packages.${system}.default;
         default = craneLib.buildPackage (commonArgs // {
           cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
           postFixup = ''
-            patchelf $out/bin/woomer \
+            patchelf $out/bin/moomer \
               --add-needed libwayland-client.so \
               --add-needed libwayland-cursor.so \
               --add-needed libwayland-egl.so \
               --add-rpath ${pkgs.lib.makeLibraryPath [ pkgs.wayland ]}
+            wrapProgram $out/bin/moomer --set XDG_SESSION_TYPE wayland
           '';
 
           meta = {
             description = "Zoomer application for Wayland inspired by tsoding's boomer";
             license = pkgs.lib.licenses.mit;
-            mainProgram = "woomer";
+            mainProgram = "moomer";
           };
         });
       });
@@ -84,8 +84,10 @@
       apps = forEachSystem (system: let
         pkgs = nixpkgs.legacyPackages.${system};
       in {
-        type = "app";
-        program = pkgs.lib.getExe self.packages.${system}.default;
+        default = {
+          type = "app";
+          program = pkgs.lib.getExe self.packages.${system}.default;
+        };
       });
 
       devShells = forEachSystem (system: let

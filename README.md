@@ -1,8 +1,8 @@
-# Woomer - Boomer but for wayland
+# Moomer - Boomer but for Wayland
 
 Zoomer application for wayland (linux) inspired by [tsoding's boomer](https://github.com/tsoding/boomer) written in rust
 
-![demo of woomer](./demo.gif)
+![demo of moomer](./demo.gif)
 
 ## Controls
 
@@ -55,13 +55,13 @@ cargo b -F dev
 
 ## Installing using the Nix flake
 
-You can also install woomer using the nix flake:
+You can also install moomer using the nix flake:
 
 ```nix
 # flake.nix
 {
   inputs = {
-    woomer.url = "github:coffeeispower/woomer";
+    moomer.url = "github:axosis00x/moomer";
     # .....
   }
   # ....
@@ -74,7 +74,7 @@ After that, you can just install it
 {inputs, system, ...}:
 {
   home.packages = [
-    inputs.woomer.packages.${system}.default
+    inputs.moomer.packages.${system}.default
     # ....
   ];
   # ....

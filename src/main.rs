@@ -1,8 +1,8 @@
-use std::{env, process};
+use std::{env, ffi::CStr, process};
 
 use libwayshot::WayshotConnection;
 use raylib::{
-    ffi::{Image as FfiImage, SetWindowMonitor, ToggleFullscreen},
+    ffi::{GetMonitorName, Image as FfiImage, SetWindowMonitor, ToggleFullscreen},
     prelude::*,
 };
 const SPOTLIGHT_TINT: Color = Color::new(0x00, 0x00, 0x00, 190);
@@ -49,7 +49,12 @@ fn main() {
         }
     }
 
-    let wayshot_connection = WayshotConnection::new().expect("Failed to connect to wayshot");
+    if env::var_os("WAYLAND_DISPLAY").is_none() {
+        eprintln!("Moomer needs to run inside a Wayland session (WAYLAND_DISPLAY is unset).");
+        process::exit(1);
+    }
+
+    let wayshot_connection = WayshotConnection::new().expect("Failed to connect to Wayland");
     let outputs = wayshot_connection.get_all_outputs();
 
     if outputs.is_empty() {
@@ -92,13 +97,16 @@ fn main() {
     };
 
     let (width, height) = screenshot_image.dimensions();
+    let mut screenshot_pixels = screenshot_image.into_vec();
+    // The screen capture may include transparent pixels. Keep the fullscreen
+    // overlay opaque so the compositor cannot blur through the screenshot.
+    for pixel in screenshot_pixels.chunks_exact_mut(4) {
+        pixel[3] = u8::MAX;
+    }
     let screenshot_image = unsafe {
         Image::from_raw(FfiImage {
             // We can leak memory here because raylib will free the memory for us
-            data: Box::new(screenshot_image.into_vec())
-                .leak()
-                .as_mut_ptr()
-                .cast(),
+            data: Box::new(screenshot_pixels).leak().as_mut_ptr().cast(),
             format: PixelFormat::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8 as i32,
             mipmaps: 1,
             width: width as i32,
@@ -128,10 +136,22 @@ fn main() {
         .vsync()
         .build();
 
-    let idx = outputs
-        .iter()
-        .position(|o| o.name == display_output.name)
-        .expect("Monitor not found");
+    // Wayshot and GLFW enumerate Wayland outputs independently. Resolve the
+    // selected output by its connector name instead of assuming both lists have
+    // the same order.
+    let idx = (0..get_monitor_count())
+        .find(|&monitor| {
+            let name = unsafe { GetMonitorName(monitor) };
+            !name.is_null()
+                && unsafe { CStr::from_ptr(name) }.to_bytes() == display_output.name.as_bytes()
+        })
+        .unwrap_or_else(|| {
+            eprintln!(
+                "GLFW did not expose Wayland output '{}'.",
+                display_output.name
+            );
+            process::exit(1);
+        });
 
     unsafe {
         ToggleFullscreen();
@@ -154,10 +174,27 @@ fn main() {
         rl.load_shader_from_memory(&thread, None, Some(include_str!("../shaders/spotlight.fs")));
     let mut rl_camera = Camera2D::default();
     rl_camera.zoom = 1.0;
-    rl_camera.target = Vector2::new(
-        display_output.logical_region.inner.position.x as f32,
-        display_output.logical_region.inner.position.y as f32,
-    );
+    // A single-output capture starts at image coordinate (0, 0); the combined
+    // capture uses the output's position in the compositor's virtual layout.
+    let camera_target_origin = if selected_output.is_some() {
+        Vector2::default()
+    } else {
+        let capture_origin_x = outputs
+            .iter()
+            .map(|output| output.logical_region.inner.position.x)
+            .min()
+            .unwrap_or(0);
+        let capture_origin_y = outputs
+            .iter()
+            .map(|output| output.logical_region.inner.position.y)
+            .min()
+            .unwrap_or(0);
+        Vector2::new(
+            (display_output.logical_region.inner.position.x - capture_origin_x) as f32,
+            (display_output.logical_region.inner.position.y - capture_origin_y) as f32,
+        )
+    };
+    rl_camera.target = camera_target_origin;
 
     let mut delta_scale = 0f64;
     let mut scale_pivot = rl.get_mouse_position();
@@ -256,10 +293,7 @@ fn main() {
         }
         if rl.is_key_pressed(KeyboardKey::KEY_ZERO) {
             rl_camera.zoom = 1.0;
-            rl_camera.target = Vector2::new(
-                selected_output.map_or(0.0, |o| o.logical_region.inner.position.x as f32),
-                selected_output.map_or(0.0, |o| o.logical_region.inner.position.y as f32),
-            );
+            rl_camera.target = camera_target_origin;
             mirror = false;
         }
 
