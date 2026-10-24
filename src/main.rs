@@ -1,4 +1,4 @@
-use std::{env, ffi::CStr, process};
+use std::{env, ffi::CStr, process, process::Command};
 
 use libwayshot::WayshotConnection;
 use raylib::{
@@ -6,6 +6,50 @@ use raylib::{
     prelude::*,
 };
 const SPOTLIGHT_TINT: Color = Color::new(0x00, 0x00, 0x00, 190);
+
+/// Hyprland can occasionally include the pointer in screencopy frames even
+/// when the protocol request excludes cursor painting. Hide it only while
+/// taking the initial frame, then restore the user's previous setting.
+struct HyprlandCursorGuard {
+    was_invisible: bool,
+}
+
+impl Drop for HyprlandCursorGuard {
+    fn drop(&mut self) {
+        let value = if self.was_invisible { "true" } else { "false" };
+        let _ = Command::new("hyprctl")
+            .args(["keyword", "cursor:invisible", value])
+            .status();
+    }
+}
+
+fn hide_hyprland_cursor_for_capture() -> Option<HyprlandCursorGuard> {
+    env::var_os("HYPRLAND_INSTANCE_SIGNATURE")?;
+    let result = Command::new("hyprctl")
+        .args(["getoption", "cursor:invisible"])
+        .output()
+        .ok()?;
+    if !result.status.success() {
+        return None;
+    }
+
+    let was_invisible = String::from_utf8_lossy(&result.stdout)
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("int:")?.trim().parse::<i32>().ok())
+        .map(|value| value != 0)?;
+
+    if !was_invisible {
+        let hidden = Command::new("hyprctl")
+            .args(["keyword", "cursor:invisible", "true"])
+            .status()
+            .ok()?;
+        if !hidden.success() {
+            return None;
+        }
+    }
+
+    Some(HyprlandCursorGuard { was_invisible })
+}
 
 fn main() {
     let mut args = env::args();
@@ -80,6 +124,7 @@ fn main() {
             )),
         };
 
+    let cursor_guard = hide_hyprland_cursor_for_capture();
     let screenshot_image = if let Some(output) = selected_output {
         wayshot_connection
             .screenshot_single_output(output, false)
@@ -91,6 +136,7 @@ fn main() {
             .expect("failed to take a screenshot")
             .to_rgba8()
     };
+    drop(cursor_guard);
 
     let (width, height) = screenshot_image.dimensions();
     let mut screenshot_pixels = screenshot_image.into_vec();
