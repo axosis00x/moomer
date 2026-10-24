@@ -15,7 +15,6 @@ fn main() {
     let mut monitor_name: Option<String> = None;
     let mut output: Option<String> = None;
     let mut radius_multiplier: f32 = 1.0;
-    let mut show_cursor = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -41,9 +40,6 @@ fn main() {
                     eprintln!("--radius must be a valid number (e.g., 5 or 3.5)");
                     process::exit(1);
                 });
-            }
-            "--show-cursor" | "-S" => {
-                show_cursor = true;
             }
             _other => print_help_and_exit(&bin),
         }
@@ -86,12 +82,12 @@ fn main() {
 
     let screenshot_image = if let Some(output) = selected_output {
         wayshot_connection
-            .screenshot_single_output(output, show_cursor)
+            .screenshot_single_output(output, false)
             .expect("failed to take a screenshot")
             .to_rgba8()
     } else {
         wayshot_connection
-            .screenshot_all(show_cursor)
+            .screenshot_all(false)
             .expect("failed to take a screenshot")
             .to_rgba8()
     };
@@ -347,7 +343,7 @@ OPTIONS:
     --monitor <name>     Monitor that the window will be shown on. Defaults to primary if not specified
     --output <name>      Monitor that should be captured. Captures all monitors if not specified
     --radius <integer>   Size of the vignette radius. Bigger number means bigger radius. Defaults to 1
-    -S --show-cursor     Whether to show cursor. Defaults to false, specify to enable",
+    The captured screenshot excludes the cursor; Moomer displays only the live cursor.",
         bin = bin
     );
     process::exit(0);
